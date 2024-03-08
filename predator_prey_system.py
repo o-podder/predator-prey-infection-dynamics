@@ -1,6 +1,7 @@
 import sympy as sp 
 import numpy as np 
 import math 
+from scipy.integrate import odeint
 
 
 def map_parameters(b): 
@@ -145,7 +146,7 @@ class PredatorPreySystem:
         self.dxdt = s.lambdify(self.params.b)
 
     def integrate(self, x0, T): 
-        t = np.arange(0, T)
+        t = np.arange(0, T, 0.01)
         def f(x,t):  
             return self.dxdt(x).flatten()
         return odeint(f, x0, t, rtol=1e-6)
