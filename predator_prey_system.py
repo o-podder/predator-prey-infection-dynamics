@@ -2,6 +2,7 @@ import sympy as sp
 import numpy as np 
 import math 
 from scipy.integrate import odeint
+import matplotlib.pyplot as plt 
 
 
 def map_parameters(b): 
@@ -67,7 +68,7 @@ class Parameters:
     def steady_state_E3_exists(self): 
         return not self.is_x3_dying()
 
-    def is_steady_state_E3_stable_as_2d(self):
+    def is_steady_state_E3_stable_as_2d(self): 
         _, b2, b3, _, _ = self.b
         return b3 * (1 + b2) > 1 - b2
 
@@ -105,7 +106,8 @@ class Parameters:
                 for x3 in np.linspace(0, x3_rhs, x3num + 1, endpoint=False)[1:]:
                     yield (x1, x2, x3)
 
-    def localizing_set_value(self):
+    
+    def localizing_set_value(self): 
         b1, _, b3, _, _ = self.b
         return 1 + b1/(4*b3)
 
@@ -167,8 +169,8 @@ class PredatorPreySystem:
         self.states = s.states
         self.dxdt = s.lambdify(self.params.b)
 
-    def integrate(self, x0, T): 
-        t = np.arange(0, T, 0.01)
+    def integrate(self, x0, T, t0=0): 
+        t = np.arange(t0, T, 0.01)
         def f(x,t):  
             return self.dxdt(x).flatten()
         return odeint(f, x0, t, rtol=1e-6)
@@ -190,3 +192,47 @@ class PredatorPreySystem:
         return self.state_eigens(
             state=self.params.steady_state_E3()
         )
+
+    
+    def is_limit_state(self, state, x0, T=1000, T_scale=2, eps=0.01, depth=3): 
+        " Does trajectory initialy at state 'x0' approach 'state'?" 
+        t0 = 0
+        for _ in range(depth): 
+            sol = self.integrate(x0, T, t0=t0) 
+            if max(sol[-1] - state) < eps: 
+                return True  
+            # Else, integrate some more
+            x0 = sol[-1]
+            t0 = T
+            T *= T_scale
+        return False
+
+    def is_global_limit_state(self, state, T=1000, T_scale=2, eps=0.01, depth=3): 
+        """ Do all inner trajectories approach 'state'?
+          Returns None if true"""
+        failed = []
+        for i, x0 in enumerate(self.params.iterate_init_conds()): 
+            #print(i, x0)
+            if not self.is_limit_state(state, x0, T, T_scale, eps, depth): 
+                failed.append(x0)
+        return None if len(failed) == 0 else failed
+
+def plot(system, x0, T, state=None, title=None): 
+    fig = plt.figure(figsize=(7, 7.5))
+    ax = fig.add_subplot(projection='3d')
+    fig.subplots_adjust(left=0, right=1, bottom=0, top=1)
+    plt.title(title)
+    ax.set_xlabel('x1')
+    ax.set_ylabel('x2')
+    ax.set_zlabel('x3')
+
+#p = [0.06, 0.1912, 0.5916, 0.6, 0.01]
+    #parameters_b = [0.06, 0.2768, 0.5792, 0.6, 0.01]
+
+    sol = system.integrate(x0, T)
+    ax.plot(sol[:,0], sol[:,1], sol[:,2], lw=0.5)
+
+    if state: 
+        plt.plot(*state, 'ro')
+
+    plt.show()
