@@ -67,6 +67,10 @@ class Parameters:
     def steady_state_E3_exists(self): 
         return not self.is_x3_dying()
 
+    def is_steady_state_E3_stable_as_2d(self):
+        _, b2, b3, _, _ = self.b
+        return b3 * (1 + b2) > 1 - b2
+
     def steady_state_E4_exists(self): 
         return not self.is_x2_dying()
 
@@ -92,17 +96,19 @@ class Parameters:
                 self.is_E3_steady_state_inner_eigen_positive() and \
                 self.is_E4_steady_state_inner_eigen_positive()
 
-    # TODO refactor --- 
-    def localizing_set_value(b): 
-        return 1 + b[0]/(4*b[2])
-
-    def iterate_init_conds(b): 
-        step = 0.01
-        for x1 in np.arange(0.2, 1, 0.1): 
-            for x2 in np.arange(0.2, 1 - x1, 0.1): 
-                for x3 in np.arange(step, localizing_set_value(b) - x1 - x2, step): 
+    def iterate_init_conds(self, x1num=2, x2num=2, x3num=2):
+        " Iterate inner points inside localizing set"
+        # Always skip first x_i = 0
+        for x1 in np.linspace(0, 1, x1num + 1, endpoint=False)[1:]:
+            for x2 in np.linspace(0, 1 - x1, x2num + 1, endpoint=False)[1:]:
+                x3_rhs = self.localizing_set_value() - x1 - x2
+                for x3 in np.linspace(0, x3_rhs, x3num + 1, endpoint=False)[1:]:
                     yield (x1, x2, x3)
-    # TODO refactor --- 
+
+    def localizing_set_value(self):
+        b1, _, b3, _, _ = self.b
+        return 1 + b1/(4*b3)
+
 
 
 def iterate_params_E5_exists(): 
@@ -111,6 +117,22 @@ def iterate_params_E5_exists():
             gu = gamma_star(alpha, beta)
             for gamma in np.arange(alpha + beta + 0.0001, gu, 0.001): 
                 yield (alpha, beta, gamma)
+
+
+def iterate_params_E3_stable(b2_step, alpha_step=0.1, beta_step=0.1, b3_step=0.1, b4=1):
+    """ - Stable in 3d sense,
+      - also choose alpha, beta s.t. alpha + beta < 1
+       b4 is independent, so its chosen arbitrary, but fixed"""
+    for alpha in np.arange(alpha_step, 1, alpha_step):
+        for beta in np.arange(beta_step, 1 - alpha, beta_step): 
+            for b3 in np.arange(b3_step, 1, b3_step):
+                b2_lhs = (1 - b3) / (1 + b3)
+                b2_rhs = (1 - b3) * (alpha + beta) / b3
+                if b2_lhs >= b2_rhs:
+                    continue
+                for b2 in np.arange(b2_lhs + b2_step, b2_rhs, b2_step):
+                    b1, b5 = alpha * b4, beta * b4
+                    yield b1, b2, b3, b4, b5
 
 
 
